@@ -1,14 +1,14 @@
 import speech_recognition as sr
 import pyttsx3
-
-# Initialize the Text-to-Speech engine (The Mouth)
-engine = pyttsx3.init()
+import math
 
 def speak(text):
-    """A helper function to make the computer speak out loud"""
+    """A helper function to make the computer speak out loud and re-bind to active audio"""
     print(f"🤖 Speaking: {text}")
+    engine = pyttsx3.init()
     engine.say(text)
     engine.runAndWait()
+    engine.stop()
 
 def listen():
     """A helper function to listen to your voice and turn it into text"""
@@ -17,7 +17,7 @@ def listen():
         print("\n🎤 Adjusting for background noise...")
         recognizer.adjust_for_ambient_noise(source, duration=0.8)
         
-        print("🎙️ Listening for your math problem... (e.g., '10 plus 5')")
+        print("🎙️ Listening...")
         audio = recognizer.listen(source)
         
     try:
@@ -33,40 +33,64 @@ def listen():
         return None
 
 def calculate(command):
-    """Simple text parser to handle basic math operations"""
-    # Replace common spoken words with math operators
+    """Advanced text parser supporting arithmetic, exponents, roots, and mod"""
+    # 1. Basic Arithmetic
     command = command.replace("plus", "+").replace("add", "+")
     command = command.replace("minus", "-").replace("subtract", "-")
     command = command.replace("times", "*").replace("multiplied by", "*").replace("multiplied", "*")
     command = command.replace("divided by", "/").replace("divide", "/")
     
-    # Filter out anything that isn't a number or safe math symbol
-    # (A basic and safe way to evaluate simple expressions in Python)
-    allowed_chars = "0123456789+-*/. "
+    # 2. Advanced Operations (Powers & Modulus)
+    command = command.replace("to the power of", "**").replace("power of", "**").replace("power", "**")
+    command = command.replace("squared", "**2").replace("cubed", "**3")
+    command = command.replace("modulus", "%").replace("mod", "%")
+    
+    # 3. Handle Square Roots Spoken Phrases (e.g., "square root of 25" -> "math.sqrt(25)")
+    if "square root of" in command:
+        command = command.replace("square root of", "math.sqrt(") + ")"
+    elif "sqrt of" in command:
+        command = command.replace("sqrt of", "math.sqrt(") + ")"
+
+    # Filter out unsafe characters while keeping numbers, math symbols, and math module syntax
+    allowed_chars = "0123456789+-*/().mathsqrtt "
     cleaned_command = "".join([char for char in command if char in allowed_chars])
     
     try:
-        # eval() safely calculates our cleaned math string
-        result = eval(cleaned_command)
+        # Senior Dev Practice: Restrict eval() scope for security, 
+        # giving it access ONLY to basic math and Python's built-in 'math' module.
+        safe_context = {
+            "__builtins__": None,
+            "math": math
+        }
+        
+        result = eval(cleaned_command, safe_context, {})
         return result
     except Exception as e:
         print(f"Calculation Error: {e}")
         return None
 
-# --- Main Program Loop ---
+# --- Main Conversational Program Loop ---
 if __name__ == "__main__":
-    speak("Voice calculator is online.")
+    speak("Advanced voice calculator is online. What would you like to calculate?")
     
-    # Listen for a command
-    spoken_text = listen()
-    
-    if spoken_text:
-        # Calculate the result
-        answer = calculate(spoken_text)
+    while True:
+        spoken_text = listen()
         
-        if answer is not None:
-            response_text = f"The answer is {answer}"
-            print(f"✨ Result: {response_text}")
-            speak(response_text)
-        else:
-            speak("I couldn't find a valid math problem in that sentence.")
+        if spoken_text:
+            exit_keywords = ['quit', 'q', 'exit', 'stop', 'goodbye']
+            if any(keyword in spoken_text for keyword in exit_keywords):
+                speak("Goodbye! Calculator is shutting down.")
+                break
+            
+            answer = calculate(spoken_text)
+            
+            if answer is not None:
+                # Format floating point numbers nicely if they are whole numbers
+                if isinstance(answer, float) and answer.is_integer():
+                    answer = int(answer)
+                    
+                response_text = f"The answer is {answer}"
+                print(f"✨ Result: {response_text}")
+                speak(f"{response_text}. What is your next calculation, or say exit to finish?")
+            else:
+                speak("I couldn't find a valid math problem in that sentence. Please try another one.")
